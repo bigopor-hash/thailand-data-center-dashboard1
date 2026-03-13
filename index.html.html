@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Thailand Data Center Dashboard</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+<style>
+  :root{
+    --bg:#f5f7fb;
+    --card:#ffffff;
+    --text:#1f2937;
+    --muted:#6b7280;
+    --line:#e5e7eb;
+    --blue:#1565c0;
+    --red:#d32f2f;
+    --purple:#6a1b9a;
+    --green:#2e7d32;
+    --shadow:0 8px 24px rgba(0,0,0,.08);
+    --radius:16px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family:Arial, Helvetica, sans-serif;
+    background:var(--bg);
+    color:var(--text);
+  }
+  .wrap{
+    display:grid;
+    grid-template-columns: 360px 1fr;
+    grid-template-rows:auto 1fr;
+    gap:16px;
+    height:100vh;
+    padding:16px;
+  }
+  .header{
+    grid-column:1 / -1;
+    background:linear-gradient(135deg,#0f172a,#1e3a8a);
+    color:#fff;
+    border-radius:20px;
+    padding:18px 22px;
+    box-shadow:var(--shadow);
+  }
+  .header h1{
+    margin:0 0 6px 0;
+    font-size:24px;
+  }
+  .header p{
+    margin:0;
+    color:rgba(255,255,255,.88);
+    line-height:1.45;
+    font-size:14px;
+    max-width:1100px;
+  }
+  .sidebar{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    min-height:0;
+  }
+  .panel{
+    background:var(--card);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:16px;
+  }
+  .panel h2{
+    margin:0 0 12px 0;
+    font-size:16px;
+  }
+  .cards{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+  }
+  .stat{
+    padding:14px;
+    border:1px solid var(--line);
+    border-radius:14px;
+    background:#fff;
+  }
+  .stat .k{
+    font-size:12px;color:var(--muted);margin-bottom:6px;
+  }
+  .stat .v{
+    font-size:22px;font-weight:700;
+  }
+  .dot{
+    width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:8px;
+  }
+  .legend-row,.list-row{
+    display:flex;justify-content:space-between;align-items:flex-start;
+    gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;
+  }
+  .legend-row:last-child,.list-row:last-child{border-bottom:none}
+  .small{color:var(--muted);font-size:12px}
+  .controls label{
+    display:flex;align-items:center;gap:8px;margin:8px 0;font-size:13px;
+  }
+  .controls button{
+    width:100%;padding:10px 12px;border:none;border-radius:12px;background:#111827;color:#fff;cursor:pointer;
+  }
+  #mapCard{
+    min-height:0;
+    display:grid;
+    grid-template-rows:auto 1fr auto;
+    gap:12px;
+    background:var(--card);
+    border-radius:20px;
+    box-shadow:var(--shadow);
+    padding:14px;
+  }
+  .map-top{
+    display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:4px 4px 0 4px;
+  }
+  .pill{
+    display:inline-flex;align-items:center;gap:8px;
+    border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-size:12px;background:#fff;
+  }
+  #map{width:100%;height:100%;border-radius:16px;border:1px solid var(--line);}
+  .footer-note{
+    color:var(--muted);font-size:12px;line-height:1.45;
+  }
+  .important-label{
+    background:#ffeb3b;border:1px solid #bfa600;border-radius:6px;padding:4px 6px;
+    font-size:11px;font-weight:700;white-space:nowrap;
+    box-shadow:0 1px 4px rgba(0,0,0,.18);
+  }
+  .hyperscale-label{
+    background:#e53935;color:#fff;border:1px solid #ab2220;border-radius:6px;padding:4px 6px;
+    font-size:11px;font-weight:700;white-space:nowrap;
+    box-shadow:0 1px 4px rgba(0,0,0,.18);
+  }
+  .cluster-tag{
+    display:inline-block;margin:4px 0;padding:2px 8px;border-radius:10px;color:#fff;font-size:11px;
+  }
+  .custom-cluster-icon div{
+    width:42px;height:42px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-weight:700;border:3px solid rgba(255,255,255,.95);
+    box-shadow:0 2px 8px rgba(0,0,0,.25);
+  }
+  @media (max-width: 1100px){
+    .wrap{grid-template-columns:1fr;grid-template-rows:auto auto 1fr;height:auto;min-height:100vh}
+    #mapCard{height:70vh}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <h1>Thailand Data Center Investment Dashboard</h1>
+    <p>Thailand has approved 25 data center projects with a total investment of approximately 467 billion baht, reflecting the rapid expansion of digital infrastructure. This investment growth increases the need for integrated data center management systems, which motivates this research.</p>
+  </div>
+
+  <div class="sidebar">
+    <div class="panel">
+      <h2>Key metrics</h2>
+      <div class="cards">
+        <div class="stat"><div class="k">Approved projects</div><div class="v" id="metricProjects">25</div></div>
+        <div class="stat"><div class="k">Total investment</div><div class="v" id="metricInvestment">467B</div></div>
+        <div class="stat"><div class="k">Hyperscale points</div><div class="v" id="metricHyper">0</div></div>
+        <div class="stat"><div class="k">Covered clusters</div><div class="v" id="metricClusters">4</div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Cluster distribution</h2>
+      <div id="distribution"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Map controls</h2>
+      <div class="controls">
+        <label><input type="checkbox" id="toggleBkk" checked> Bangkok Metro / Samut Prakan</label>
+        <label><input type="checkbox" id="toggleEec" checked> EEC cluster</label>
+        <label><input type="checkbox" id="toggleMulti" checked> Multi-site / nationwide</label>
+        <label><input type="checkbox" id="toggleOther"> Other public locations</label>
+        <label><input type="checkbox" id="toggleHeat" checked> Investment heatmap</label>
+        <label><input type="checkbox" id="toggleLabels" checked> Highlight labels</label>
+        <button id="zoomBtn">Zoom to all projects</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Highlighted projects</h2>
+      <div id="importantProjects"></div>
+    </div>
+  </div>
+
+  <div id="mapCard">
+    <div class="map-top">
+      <div>
+        <span class="pill"><span class="dot" style="background:var(--blue)"></span>Bangkok Metro / Samut Prakan</span>
+        <span class="pill"><span class="dot" style="background:var(--red)"></span>EEC cluster</span>
+        <span class="pill"><span class="dot" style="background:var(--purple)"></span>Multi-site / nationwide</span>
+      </div>
+      <div class="small">Source coverage: BOI / OSOS official announcements and public investment disclosures, 17 Mar 2025 – 15 Jan 2026</div>
+    </div>
+    <div id="map"></div>
+    <div class="footer-note">
+      Locations are shown using public province-level or disclosed public plotting points where exact site coordinates are not publicly available. Marker clusters aggregate nearby projects for clearer dashboard viewing.
+    </div>
+  </div>
+</div>
+
+<script>
+const projects = [
+  {name:'Current', investment:19773, province:'Chonburi', mw:'N/A', lat:13.3611, lon:100.9847, cluster:'EEC cluster', category:'eec'},
+  {name:'STT GDC Thailand', investment:9348, province:'Samut Prakan', mw:'N/A', lat:13.5991, lon:100.5998, cluster:'Bangkok Metro / Samut Prakan', category:'bkk'},
+  {name:'K2 Strategic Infrastructure', investment:30869, province:'Chonburi', mw:'N/A', lat:13.3611, lon:100.9847, cluster:'EEC cluster', category:'eec'},
+  {name:'Thai DC One', investment:22110, province:'Samut Prakan', mw:'N/A', lat:13.5991, lon:100.5998, cluster:'Bangkok Metro / Samut Prakan', category:'bkk'},
+  {name:'ST Clean Planet', investment:20635, province:'Rayong', mw:'N/A', lat:12.6814, lon:101.2810, cluster:'EEC cluster', category:'eec'},
+  {name:'Dareia Data Center & Cloud Services', investment:6594, province:'Bangkok', mw:'N/A', lat:13.7563, lon:100.5018, cluster:'Bangkok Metro / Samut Prakan', category:'bkk'},
+  {name:'GSA Data Center', investment:30611, province:'Rayong', mw:'120 MW', lat:12.6814, lon:101.2810, cluster:'EEC cluster', category:'eec'},
+  {name:'Smart Megawatt', investment:3797, province:'Chachoengsao', mw:'N/A', lat:13.6904, lon:101.0779, cluster:'EEC cluster', category:'eec'},
+  {name:'TD Data International', investment:13000, province:'Chonburi', mw:'N/A', lat:13.3611, lon:100.9847, cluster:'EEC cluster', category:'eec'},
+  {name:'Tong Nan Data', investment:20625, province:'Rayong', mw:'N/A', lat:12.6814, lon:101.2810, cluster:'EEC cluster', category:'eec'},
+  {name:'Prime Megawatt', investment:7378, province:'Chachoengsao', mw:'N/A', lat:13.6904, lon:101.0779, cluster:'EEC cluster', category:'eec'},
+  {name:'Beijing Haoyang Cloud & Data Technology', investment:72700, province:'Rayong', mw:'300 MW', lat:12.6814, lon:101.2810, cluster:'EEC cluster', category:'eec', important:true},
+  {name:'Empyrion Digital', investment:4720, province:'Bangkok', mw:'12 MW', lat:13.7563, lon:100.5018, cluster:'Bangkok Metro / Samut Prakan', category:'bkk', important:true},
+  {name:'GSA Data Center 02', investment:13500, province:'Chonburi', mw:'35 MW', lat:13.3611, lon:100.9847, cluster:'EEC cluster', category:'eec', important:true},
+  {name:'Telehouse Thailand (KDDI)', investment:7550, province:'Bangkok', mw:'12 MW', lat:13.7563, lon:100.5018, cluster:'Bangkok Metro / Samut Prakan', category:'bkk'},
+  {name:'Vistas Technology (ZDATA)', investment:9090, province:'Chonburi', mw:'80 MW', lat:13.3611, lon:100.9847, cluster:'EEC cluster', category:'eec'},
+  {name:'DAMAC Digital / NextGen DC', investment:26700, province:'Chonburi', mw:'84 MW', lat:13.3611, lon:100.9847, cluster:'EEC cluster', category:'eec'},
+  {name:'Zenith Data Center', investment:54900, province:'Rayong', mw:'200 MW', lat:12.6814, lon:101.2810, cluster:'EEC cluster', category:'eec'},
+  {name:'True Internet Data Center (3 projects)', investment:45304, province:'Chonburi + Samut Prakan', mw:'223 MW', lat:13.4801, lon:100.7922, cluster:'Bangkok Metro / EEC linked', category:'multi'},
+  {name:'Stellar DC', investment:8050, province:'Bangkok', mw:'25 MW', lat:13.7563, lon:100.5018, cluster:'Bangkok Metro / Samut Prakan', category:'bkk'},
+  {name:'Freyr Technology (Thailand)', investment:6321, province:'Rayong + Samut Prakan', mw:'N/A', lat:13.1400, lon:100.9400, cluster:'Bangkok Metro / EEC linked', category:'multi'},
+  {name:'Quartz Computing (Google)', investment:32800, province:'Chonburi', mw:'Hyperscale', lat:13.3611, lon:100.9847, cluster:'EEC cluster', category:'eec'},
+  {name:'Digital Edge + B.Grimm', investment:26000, province:'Chonburi', mw:'N/A', lat:13.3611, lon:100.9847, cluster:'EEC cluster', category:'eec'},
+  {name:'ByteDance Data Hosting', investment:126790, province:'Thailand (public nationwide disclosure)', mw:'Hyperscale', lat:13.7367, lon:100.5231, cluster:'Multi-site / nationwide', category:'multi'},
+  {name:'AWS Thailand Region', investment:180000, province:'Thailand (public nationwide disclosure)', mw:'Hyperscale', lat:13.7367, lon:100.5231, cluster:'Multi-site / nationwide', category:'multi'}
+];
+
+const map = L.map('map', {zoomControl:true}).setView([13.35, 101.05], 7);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution:'&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+function colorFor(cat){
+  if(cat==='bkk') return '#1565c0';
+  if(cat==='eec') return '#d32f2f';
+  if(cat==='multi') return '#6a1b9a';
+  return '#2e7d32';
+}
+function tagFor(cat){
+  if(cat==='bkk') return 'var(--blue)';
+  if(cat==='eec') return 'var(--red)';
+  if(cat==='multi') return 'var(--purple)';
+  return 'var(--green)';
+}
+function createClusterGroup(color){
+  return L.markerClusterGroup({
+    showCoverageOnHover:false,
+    spiderfyOnMaxZoom:true,
+    maxClusterRadius:45,
+    iconCreateFunction: function(cluster){
+      return L.divIcon({
+        html:`<div style="background:${color}">${cluster.getChildCount()}</div>`,
+        className:'custom-cluster-icon',
+        iconSize:[42,42]
+      });
+    }
+  });
+}
+
+const layerBkk = createClusterGroup('#1565c0');
+const layerEec = createClusterGroup('#d32f2f');
+const layerMulti = createClusterGroup('#6a1b9a');
+const layerOther = createClusterGroup('#2e7d32');
+const labelsLayer = L.layerGroup().addTo(map);
+const bounds = [];
+const heatInput = [];
+
+projects.forEach((p, idx) => {
+  const marker = L.circleMarker([p.lat, p.lon], {
+    radius:8,
+    color:'#fff',
+    weight:1.5,
+    fillColor:colorFor(p.category),
+    fillOpacity:.9
+  });
+
+  const clusterTag = `<span class="cluster-tag" style="background:${colorFor(p.category)}">${p.cluster}</span>`;
+  marker.bindPopup(`
+    <div style="min-width:220px">
+      <strong>${idx + 1}. ${p.name}</strong><br>
+      ${clusterTag}<br>
+      Province / public location: ${p.province}<br>
+      Investment: ${p.investment.toLocaleString()} million baht<br>
+      IT Load: ${p.mw}
+    </div>
+  `);
+
+  if (p.category==='bkk') layerBkk.addLayer(marker);
+  else if (p.category==='eec') layerEec.addLayer(marker);
+  else if (p.category==='multi') layerMulti.addLayer(marker);
+  else layerOther.addLayer(marker);
+
+  if (p.important){
+    L.marker([p.lat, p.lon], {
+      icon: L.divIcon({className:'', html:`<div class="important-label">${p.name}</div>`})
+    }).addTo(labelsLayer);
+  }
+
+  if (String(p.mw).toLowerCase().includes('hyperscale')){
+    L.marker([p.lat, p.lon], {
+      icon: L.divIcon({className:'', html:`<div class="hyperscale-label">Hyperscale</div>`})
+    }).addTo(labelsLayer);
+  }
+
+  bounds.push([p.lat, p.lon]);
+  heatInput.push([p.lat, p.lon, p.investment / 180000]);
+});
+
+layerBkk.addTo(map);
+layerEec.addTo(map);
+layerMulti.addTo(map);
+
+const heatLayer = L.heatLayer(heatInput, {
+  radius:32, blur:22, maxZoom:10, minOpacity:0.35
+}).addTo(map);
+
+document.getElementById('zoomBtn').addEventListener('click', () => map.fitBounds(bounds, {padding:[30,30]}));
+
+function setLayerToggle(id, layer){
+  const el = document.getElementById(id);
+  el.addEventListener('change', () => {
+    if (el.checked) map.addLayer(layer); else map.removeLayer(layer);
+  });
+}
+setLayerToggle('toggleBkk', layerBkk);
+setLayerToggle('toggleEec', layerEec);
+setLayerToggle('toggleMulti', layerMulti);
+setLayerToggle('toggleOther', layerOther);
+setLayerToggle('toggleHeat', heatLayer);
+setLayerToggle('toggleLabels', labelsLayer);
+
+const totals = {
+  projects: projects.length,
+  investment: projects.reduce((s,p)=>s+p.investment,0),
+  hyperscale: projects.filter(p=>String(p.mw).toLowerCase().includes('hyperscale')).length
+};
+document.getElementById('metricProjects').textContent = totals.projects.toLocaleString();
+document.getElementById('metricInvestment').textContent = (totals.investment/1000).toFixed(0) + 'B';
+document.getElementById('metricHyper').textContent = totals.hyperscale.toLocaleString();
+
+const clusters = [
+  {key:'bkk', label:'Bangkok Metro / Samut Prakan'},
+  {key:'eec', label:'EEC cluster'},
+  {key:'multi', label:'Bangkok Metro / EEC linked + nationwide'},
+  {key:'other', label:'Other public locations'}
+];
+const stats = {bkk:{count:0,sum:0}, eec:{count:0,sum:0}, multi:{count:0,sum:0}, other:{count:0,sum:0}};
+projects.forEach(p=>{
+  const k = stats[p.category] ? p.category : 'other';
+  stats[k].count += 1;
+  stats[k].sum += p.investment;
+});
+document.getElementById('distribution').innerHTML = clusters.map(c=>{
+  const s = stats[c.key];
+  const pct = ((s.count / totals.projects) * 100).toFixed(0);
+  return `<div class="legend-row">
+    <div><span class="dot" style="background:${colorFor(c.key)}"></span>${c.label}<div class="small">${s.count} projects · ${pct}%</div></div>
+    <div style="text-align:right;font-weight:700">${s.sum.toLocaleString()}<div class="small">million baht</div></div>
+  </div>`;
+}).join('');
+
+const importantList = projects.filter(p => p.important || String(p.mw).toLowerCase().includes('hyperscale'))
+  .map(p => `<div class="list-row">
+      <div>
+        <div style="font-weight:700">${p.name}</div>
+        <div class="small">${p.province}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-weight:700">${p.mw}</div>
+        <div class="small">${p.investment.toLocaleString()} MB</div>
+      </div>
+    </div>`).join('');
+document.getElementById('importantProjects').innerHTML = importantList;
+
+map.fitBounds(bounds, {padding:[30,30]});
+</script>
+</body>
+</html>
